@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, ForeignKey
+from typing import Optional
 
 from database import Base
 
@@ -19,4 +20,7 @@ class News(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     theme: Mapped[str] = mapped_column(String(255))
     category_id: Mapped[int] = mapped_column(ForeignKey('categories.id'))
+    image: Mapped[Optional[str]]=mapped_column(nullable=True)
+    video: Mapped[Optional[str]]=mapped_column(nullable=True)
+    file: Mapped[Optional[str]]=mapped_column(nullable=True)
     category: Mapped['Category'] = relationship('Category', back_populates='news')

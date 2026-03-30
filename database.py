@@ -1,3 +1,4 @@
+import os
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -11,3 +12,7 @@ class Base(DeclarativeBase):
 async def get_db():
     async with LocalSession() as session:
         yield session
+
+
+MEDIA_DIR='media'
+os.makedirs(MEDIA_DIR, exist_ok=True)

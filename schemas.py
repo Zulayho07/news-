@@ -1,24 +1,29 @@
-from  pydantic import BaseModel
+from pydantic import BaseModel
+from typing import Optional
 
 
 class CreateCategory(BaseModel):
     name: str
 
+
 class CategoryResponse(CreateCategory):
     id: int
 
     class Config:
-        from_attributes=True
+        from_attributes = True
 
 
 class CreateNews(BaseModel):
-    name: str
+    theme: str
+    image: Optional[str] = None
+    video: Optional[str] = None
+    file:Optional[str]=None
+    category_id: int
 
 
 class NewsResponse(CreateNews):
     id: int
-    theme: str
-    category_id:int
+
 
     class Config:
         from_attributes = True
