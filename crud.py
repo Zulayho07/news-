@@ -3,12 +3,13 @@ import shutil
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from fastapi import HTTPException, UploadFile
+from sqlalchemy.orm import selectinload
 
-
-from schemas import (CreateCategory, CategoryResponse,
-                     CreateNews, NewsResponse)
+from schemas import (CreateCategory, CategoryResponse, CategoryDeleteResponse,
+                     CreateNews, NewsResponse, NewsDeleteResponse)
 from models import News, Category
 from database import MEDIA_DIR
+
 
 async def create_category(category: CreateCategory, db: AsyncSession) -> CategoryResponse:
     db_category = Category(**category.model_dump())
@@ -19,7 +20,7 @@ async def create_category(category: CreateCategory, db: AsyncSession) -> Categor
 
 
 async def read_categories(db: AsyncSession) -> list[CategoryResponse]:
-    result = await db.execute(select(Category))
+    result = await db.execute(select(Category).options(selectinload(Category.news)))
     return [CategoryResponse.model_validate(category) for category in result.scalars().all()]
 
 
@@ -44,7 +45,21 @@ async def update_category(category_id: int, category: CreateCategory, db: AsyncS
     return CategoryResponse.model_validate(db_category)
 
 
-async def delete_category(category_id: int, db: AsyncSession) -> dict:
+async def partial_update_category(category_id: int, category: CreateCategory, db: AsyncSession) -> CategoryResponse:
+    db_category = await db.get(Category, category_id)
+    if not db_category:
+        raise HTTPException(status_code=404, detail='Category not found')
+
+    for attr, value in category.__dict__.items():
+        if value:
+            setattr(db_category, attr, value)
+
+    await db.commit()
+    await db.refresh(db_category)
+    return CategoryResponse.model_validate(db_category)
+
+
+async def delete_category(category_id: int, db: AsyncSession) -> CategoryDeleteResponse:
     category = await db.get(Category, category_id)
     if not category:
         raise HTTPException(status_code=404, detail='Category not found')
@@ -52,14 +67,14 @@ async def delete_category(category_id: int, db: AsyncSession) -> dict:
     await db.delete(category)
     await db.commit()
 
-    return {'message': 'Category Deleted Successfully'}
+    return CategoryDeleteResponse(**{'message': 'Category Deleted Successfully'})
 
 
 # ------------------------NEWS-------------------------
 
 
 async def create_news(news: CreateNews, db: AsyncSession,
-image: UploadFile=None, video: UploadFile=None, file: UploadFile=None) -> NewsResponse:
+                      image: UploadFile = None, video: UploadFile = None, file: UploadFile = None) -> NewsResponse:
     if image:
         if image.filename.lower().split('.')[-1] not in ['jpeg', 'jpg', 'png', 'img', 'bmp']:
             raise HTTPException(status_code=404, detail='Only jpg, png, bmp, jpeg images are allowed.')
@@ -74,27 +89,25 @@ image: UploadFile=None, video: UploadFile=None, file: UploadFile=None) -> NewsRe
     await db.refresh(db_news)
 
     if image:
-        image_path=Path(MEDIA_DIR) / f'news_{db_news.id}_image.{image.filename.split('.')[-1]}'
+        image_path = Path(MEDIA_DIR) / f'news_{db_news.id}_image.{image.filename.split('.')[-1]}'
         with image_path.open(mode='wb') as buffer:
             shutil.copyfileobj(image.file, buffer)
 
-            db_news.image=str(image_path)
-
+            db_news.image = str(image_path)
 
         if video:
             video_path = Path(MEDIA_DIR) / f'news_{db_news.id}_video.{video.filename.split('.')[-1]}'
             with video_path.open(mode='wb') as buffer:
                 shutil.copyfileobj(video.file, buffer)
 
-            db_news.video=str(video_path)
+            db_news.video = str(video_path)
 
         if file:
             file_path = Path(MEDIA_DIR) / f'news_{db_news.id}_file.{file.filename.split('.')[-1]}'
             with file_path.open(mode='wb') as buffer:
                 shutil.copyfileobj(file.file, buffer)
 
-            db_news.file=str(file_path)
-
+            db_news.file = str(file_path)
 
     await db.commit()
     await db.refresh(db_news)
@@ -102,7 +115,7 @@ image: UploadFile=None, video: UploadFile=None, file: UploadFile=None) -> NewsRe
 
 
 async def read_news(db: AsyncSession) -> list[NewsResponse]:
-    result = await db.execute(select(News))
+    result = await db.execute(select(News).options(selectinload(News.category)))
     return [NewsResponse.model_validate(news) for news in result.scalars().all()]
 
 
@@ -127,7 +140,21 @@ async def update_news(news_id: int, news: CreateNews, db: AsyncSession) -> NewsR
     return NewsResponse.model_validate(db_news)
 
 
-async def delete_news(news_id: int, db: AsyncSession) -> dict:
+async def partial_update_news(news_id, news, db):
+    db_news = await db.get(News, news_id)
+    if not db_news:
+        raise HTTPException(status_code=404, detail='News not found')
+
+    for attr, value in news.__dict__.items():
+        if value:
+            setattr(db_news, attr, value)
+
+    await db.commit()
+    await db.refresh(db_news)
+    return NewsResponse.model_validate(db_news)
+
+
+async def delete_news(news_id: int, db: AsyncSession) -> NewsDeleteResponse:
     news = await db.get(News, news_id)
     if not news:
         raise HTTPException(status_code=404, detail='News not found')
@@ -135,4 +162,4 @@ async def delete_news(news_id: int, db: AsyncSession) -> dict:
     await db.delete(news)
     await db.commit()
 
-    return {'message': 'News Deleted Successfully'}
+    return NewsDeleteResponse(**{'message': 'News Deleted Successfully'})
